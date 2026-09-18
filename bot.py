@@ -1,5 +1,6 @@
 import telebot
 import os
+import time
 from telebot.types import (
     InlineKeyboardMarkup, InlineKeyboardButton,
     ReplyKeyboardMarkup, KeyboardButton,
@@ -10,6 +11,9 @@ bot = telebot.TeleBot("8616602526:AAEk0WwEeVLqrRPdnaHuAG_Vcd4FhbiXagQ")
 
 # ===== ТВОЙ ID (админ) =====
 ADMIN_ID = 1195946473
+
+# ===== ФОТО ДЛЯ СТАРТА =====
+START_PHOTO = "https://i.imgur.com/zT9oi5q.jpeg"
 
 # ===== ТОВАРЫ =====
 PRODUCTS = {
@@ -58,21 +62,37 @@ def main_menu():
     markup.add(KeyboardButton("ℹ️ Помощь"), KeyboardButton("📞 Контакты"))
     return markup
 
-# ===== /START =====
+# ===== /START (С ФОТО) =====
 @bot.message_handler(commands=['start'])
 def start(message):
     if message.from_user.id in BLOCKED_USERS:
         bot.send_message(message.chat.id, "⛔ Вы заблокированы администратором.")
         return
     save_user(message.from_user.id)
-    bot.send_message(
-        message.chat.id,
-        "👋 Добро пожаловать в магазин физ. аккаунтов WertaShop!❤️\n\n"
-        "📌 Нажми кнопку **🛒 Каталог**, чтобы посмотреть товары.\n"
-        "📌 Если нужна помощь — нажми **ℹ️ Помощь**.",
-        reply_markup=main_menu(),
-        parse_mode="Markdown"
+    
+    caption = (
+        "👋 Добро пожаловать в магазин физ. аккаунтов *WertaShop*!❤️\n\n"
+        "📌 Нажми кнопку *🛒 Каталог*, чтобы посмотреть товары.\n"
+        "📌 Если нужна помощь — нажми *ℹ️ Помощь*.\n\n"
+        "⚡ Быстрая выдача | 🛡 Честные аккаунты | 🕐 Поддержка 24/7"
     )
+    
+    try:
+        bot.send_photo(
+            message.chat.id,
+            photo=START_PHOTO,
+            caption=caption,
+            reply_markup=main_menu(),
+            parse_mode="Markdown"
+        )
+    except Exception as e:
+        # Если фото не загрузится — отправим просто текст
+        bot.send_message(
+            message.chat.id,
+            caption,
+            reply_markup=main_menu(),
+            parse_mode="Markdown"
+        )
 
 # ===== КАТАЛОГ =====
 @bot.message_handler(func=lambda m: m.text == "🛒 Каталог")
@@ -147,6 +167,7 @@ def buy_callback(call):
 def pay_callback(call):
     _, method, key = call.data.split("_")
     product = PRODUCTS.get(key)
+
     if method == "stars":
         bot.send_invoice(
             chat_id=call.message.chat.id,
@@ -158,6 +179,7 @@ def pay_callback(call):
             prices=[LabeledPrice(label=product['name'], amount=product['price_stars'])]
         )
         bot.answer_callback_query(call.id)
+
     elif method == "rub":
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton("✅ Я оплатил(а)", callback_data=f"rub_paid_{key}"))
@@ -174,6 +196,7 @@ def pay_callback(call):
             reply_markup=markup
         )
         bot.answer_callback_query(call.id)
+
     elif method == "crypto":
         markup = InlineKeyboardMarkup()
         markup.add(InlineKeyboardButton("✅ Я оплатил(а)", callback_data=f"crypto_paid_{key}"))
@@ -200,12 +223,14 @@ def got_payment(message):
     parts = payload.split("_")
     key = parts[1]
     product = PRODUCTS.get(key)
+
     bot.send_message(
         message.chat.id,
         f"✅ Оплата Stars прошла!\n"
         f"Товар: {product['name']}\n\n"
         "⏳ Ожидай подтверждения от администратора."
     )
+
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton("✅ Выдать аккаунт", callback_data=f"give_{key}_{message.from_user.id}"))
     bot.send_message(
@@ -227,17 +252,21 @@ def manual_paid(call):
     else:
         key = call.data.split("_")[2]
         method = "криптой"
+
     product = PRODUCTS.get(key)
     buyer_id = call.from_user.id
     buyer_name = call.from_user.first_name or "Без имени"
+
     bot.send_message(
         call.message.chat.id,
         f"✅ Ты подтвердил оплату {method}!\n"
         f"Товар: {product['name']}\n\n"
         "⏳ Ожидай подтверждения от администратора."
     )
+
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton("✅ Выдать аккаунт", callback_data=f"give_{key}_{buyer_id}"))
+
     bot.send_message(
         ADMIN_ID,
         f"💰 *НОВАЯ ОПЛАТА ({method})!*\n\n"
@@ -417,8 +446,6 @@ def broadcast(message):
 if __name__ == "__main__":
     load_blocked()
     print("✅ Бот WertaShop запущен!")
-    # Работаем 4 минуты, потом выходим (GitHub Actions перезапустит через 15 минут)
-    import time
     start_time = time.time()
     while time.time() - start_time < 230:
         try:
