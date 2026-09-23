@@ -14,7 +14,6 @@ ADMIN_ID = 1195946473
 START_PHOTO = "https://i.imgur.com/zT9oi5q.jpeg"
 CATALOG_PHOTO = "https://i.imgur.com/hjfrjya.jpeg"
 
-# Реквизиты (копируются при нажатии)
 CARD_NUMBER = "2202 2088 2391 7423"
 WALLET_TON = "UQAuBieTaYe0N5fn2sR6RlNzlO_kG_Rc2V0zBvjN4NWj1fPK"
 
@@ -380,6 +379,94 @@ def cancel_action(message):
         return
     admin_state.pop(ADMIN_ID, None)
     bot.send_message(ADMIN_ID, "✅ Действие отменено.")
+
+# ===== АДМИН-ПАНЕЛЬ =====
+@bot.message_handler(commands=['admin'])
+def admin_panel(message):
+    if message.from_user.id != ADMIN_ID:
+        bot.send_message(message.chat.id, "⛔ У тебя нет доступа к админке.")
+        return
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("📊 Статистика", callback_data="admin_stats"))
+    bot.send_message(
+        message.chat.id,
+        "🔧 *Админ-панель WertaShop*\n\n"
+        "Команды:\n"
+        "`/give ID логин:пароль` — выдать аккаунт\n"
+        "`/block ID` — заблокировать\n"
+        "`/unblock ID` — разблокировать\n"
+        "`/broadcast Текст` — рассылка\n"
+        "`/cancel` — отменить ввод\n\n"
+        "Или нажми кнопку:",
+        reply_markup=markup,
+        parse_mode="Markdown"
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data == "admin_stats")
+def admin_stats(call):
+    if call.from_user.id != ADMIN_ID:
+        bot.answer_callback_query(call.id, "⛔ Нет доступа")
+        return
+    users_count = 0
+    if os.path.exists(USERS_FILE):
+        with open(USERS_FILE) as f:
+            users_count = len([l for l in f if l.strip()])
+    bot.send_message(
+        call.message.chat.id,
+        f"📊 *Статистика:*\n\n"
+        f"👥 Пользователей: {users_count}\n"
+        f"⛔ Заблокировано: {len(BLOCKED_USERS)}",
+        parse_mode="Markdown"
+    )
+    bot.answer_callback_query(call.id)
+
+# ===== БЛОКИРОВКА =====
+@bot.message_handler(commands=['block'])
+def block_user(message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    try:
+        uid = int(message.text.split()[1])
+        BLOCKED_USERS.add(uid)
+        save_blocked()
+        bot.send_message(message.chat.id, f"✅ Пользователь {uid} заблокирован.")
+    except:
+        bot.send_message(message.chat.id, "❌ Формат: /block ID_пользователя")
+
+@bot.message_handler(commands=['unblock'])
+def unblock_user(message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    try:
+        uid = int(message.text.split()[1])
+        BLOCKED_USERS.discard(uid)
+        save_blocked()
+        bot.send_message(message.chat.id, f"✅ Пользователь {uid} разблокирован.")
+    except:
+        bot.send_message(message.chat.id, "❌ Формат: /unblock ID_пользователя")
+
+# ===== РАССЫЛКА =====
+@bot.message_handler(commands=['broadcast'])
+def broadcast(message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    text = message.text.replace("/broadcast", "").strip()
+    if not text:
+        bot.send_message(message.chat.id, "❌ Напиши: `/broadcast Твой текст`", parse_mode="Markdown")
+        return
+    if not os.path.exists(USERS_FILE):
+        bot.send_message(message.chat.id, "❌ Нет файла users.txt")
+        return
+    with open(USERS_FILE, "r") as f:
+        users = [int(line.strip()) for line in f if line.strip().isdigit()]
+    sent = 0
+    for uid in users:
+        try:
+            bot.send_message(uid, text)
+            sent += 1
+        except:
+            pass
+    bot.send_message(message.chat.id, f"✅ Рассылка отправлена {sent} пользователям.")
 
 # ===== ЗАПУСК =====
 if __name__ == "__main__":
