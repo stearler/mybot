@@ -3,11 +3,10 @@ import os
 import time
 from telebot.types import (
     InlineKeyboardMarkup, InlineKeyboardButton,
-    ReplyKeyboardMarkup, KeyboardButton,
     LabeledPrice
 )
 
-bot = telebot.TeleBot("8616602526:AAEk0WwEeVLqrRPdnaHuAG_Vcd4FhbiXagQ")
+bot = telebot.TeleBot("8616602526:AAEk0WwEeVLqrRPdnaHuAG_Vcd4FhbiXagQ", parse_mode="HTML")
 
 # ===== НАСТРОЙКИ =====
 ADMIN_ID = 1195946473
@@ -16,6 +15,11 @@ CATALOG_PHOTO = "https://i.imgur.com/hjfrjya.jpeg"
 
 CARD_NUMBER = "2202 2088 2391 7423"
 WALLET_TON = "UQAuBieTaYe0N5fn2sR6RlNzlO_kG_Rc2V0zBvjN4NWj1fPK"
+
+# ID премиум-эмодзи
+EMOJI_CATALOG = "5877332341331857066"
+EMOJI_HELP = "6039422865189638057"
+EMOJI_CONTACTS = "6039605143601680423"
 
 # ===== ТОВАРЫ =====
 PRODUCTS = {
@@ -55,11 +59,24 @@ def save_user(uid):
 
 admin_state = {}
 
-# ===== ГЛАВНОЕ МЕНЮ =====
-def main_menu():
-    markup = ReplyKeyboardMarkup(resize_keyboard=True)
-    markup.add(KeyboardButton("🛒 Каталог"))
-    markup.add(KeyboardButton("ℹ️ Помощь"), KeyboardButton("📞 Контакты"))
+# ===== INLINE-МЕНЮ (в приветствии) =====
+def main_inline_menu():
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton(
+        "Каталог",
+        callback_data="open_catalog",
+        icon_custom_emoji_id=EMOJI_CATALOG
+    ))
+    markup.add(InlineKeyboardButton(
+        "Помощь",
+        callback_data="open_help",
+        icon_custom_emoji_id=EMOJI_HELP
+    ))
+    markup.add(InlineKeyboardButton(
+        "Контакты",
+        callback_data="open_contacts",
+        icon_custom_emoji_id=EMOJI_CONTACTS
+    ))
     return markup
 
 # ===== /START =====
@@ -71,11 +88,10 @@ def start(message):
     save_user(message.from_user.id)
     
     caption = (
-        "👋 Добро пожаловать в *WertaShop*! ❤️\n"
+        "👋 Добро пожаловать в <b>WertaShop</b>! ❤️\n"
         "━━━━━━━━━━━━━━━━━━━━\n\n"
         "🏪 Магазин качественных аккаунтов Telegram\n\n"
-        "📌 Нажми *🛒 Каталог*, чтобы посмотреть товары\n"
-        "📌 Если нужна помощь — *ℹ️ Помощь*\n\n"
+        "📌 Нажми кнопку ниже, чтобы посмотреть товары\n\n"
         "━━━━━━━━━━━━━━━━━━━━\n"
         "⚡ Быстрая выдача\n"
         "🛡 Честные аккаунты\n"
@@ -83,18 +99,49 @@ def start(message):
     )
     try:
         bot.send_photo(message.chat.id, photo=START_PHOTO, caption=caption,
-                       reply_markup=main_menu(), parse_mode="Markdown")
+                       reply_markup=main_inline_menu())
     except:
-        bot.send_message(message.chat.id, caption, reply_markup=main_menu(), parse_mode="Markdown")
+        bot.send_message(message.chat.id, caption, reply_markup=main_inline_menu())
+
+# ===== ОБРАБОТКА КНОПОК МЕНЮ =====
+@bot.callback_query_handler(func=lambda call: call.data == "open_catalog")
+def open_catalog(call):
+    bot.answer_callback_query(call.id)
+    show_catalog(call.message.chat.id)
+
+@bot.callback_query_handler(func=lambda call: call.data == "open_help")
+def open_help(call):
+    bot.answer_callback_query(call.id)
+    bot.send_message(
+        call.message.chat.id,
+        "❓ <b>КАК СДЕЛАТЬ ЗАКАЗ</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        "1️⃣ Нажми <b>Каталог</b>\n"
+        "2️⃣ Выбери товар\n"
+        "3️⃣ Оплати удобным способом\n"
+        "4️⃣ Получи логин и пароль\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n"
+        "💬 Поддержка: @WertaSupport"
+    )
+
+@bot.callback_query_handler(func=lambda call: call.data == "open_contacts")
+def open_contacts(call):
+    bot.answer_callback_query(call.id)
+    bot.send_message(
+        call.message.chat.id,
+        "📞 <b>СВЯЗЬ С ПОДДЕРЖКОЙ</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        "💬 Telegram: @WertaSupport\n"
+        "📧 Email: WertaShopHelp@bk.ru"
+    )
 
 # ===== КАТАЛОГ =====
-@bot.message_handler(func=lambda m: m.text == "🛒 Каталог")
-def catalog(message):
-    if message.from_user.id in BLOCKED_USERS:
+def show_catalog(chat_id):
+    if chat_id in BLOCKED_USERS:
         return
-    save_user(message.from_user.id)
+    save_user(chat_id)
     
-    text = "📦 *НАШИ АККАУНТЫ*\n"
+    text = "📦 <b>НАШИ АККАУНТЫ</b>\n"
     text += "━━━━━━━━━━━━━━━━━━━━\n\n"
     markup = InlineKeyboardMarkup()
     for key, p in PRODUCTS.items():
@@ -105,42 +152,9 @@ def catalog(message):
         markup.add(InlineKeyboardButton(f"🛒 Купить {p['name']}", callback_data=f"buy_{key}"))
     
     try:
-        bot.send_photo(message.chat.id, photo=CATALOG_PHOTO, caption=text,
-                       reply_markup=markup, parse_mode="Markdown")
+        bot.send_photo(chat_id, photo=CATALOG_PHOTO, caption=text, reply_markup=markup)
     except:
-        bot.send_message(message.chat.id, text, reply_markup=markup, parse_mode="Markdown")
-
-# ===== ПОМОЩЬ =====
-@bot.message_handler(func=lambda m: m.text == "ℹ️ Помощь")
-def help_message(message):
-    if message.from_user.id in BLOCKED_USERS:
-        return
-    bot.send_message(
-        message.chat.id,
-        "❓ *КАК СДЕЛАТЬ ЗАКАЗ*\n"
-        "━━━━━━━━━━━━━━━━━━━━\n\n"
-        "1️⃣ Нажми *🛒 Каталог*\n"
-        "2️⃣ Выбери товар\n"
-        "3️⃣ Оплати удобным способом\n"
-        "4️⃣ Получи логин и пароль\n\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "💬 Поддержка: @WertaSupport",
-        parse_mode="Markdown"
-    )
-
-# ===== КОНТАКТЫ =====
-@bot.message_handler(func=lambda m: m.text == "📞 Контакты")
-def contacts(message):
-    if message.from_user.id in BLOCKED_USERS:
-        return
-    bot.send_message(
-        message.chat.id,
-        "📞 *СВЯЗЬ С ПОДДЕРЖКОЙ*\n"
-        "━━━━━━━━━━━━━━━━━━━━\n\n"
-        "💬 Telegram: @WertaSupport\n"
-        "📧 Email: WertaShopHelp@bk.ru",
-        parse_mode="Markdown"
-    )
+        bot.send_message(chat_id, text, reply_markup=markup)
 
 # ===== ВЫБОР ТОВАРА =====
 @bot.callback_query_handler(func=lambda call: call.data.startswith("buy_"))
@@ -159,17 +173,16 @@ def buy_callback(call):
     markup.add(InlineKeyboardButton("💎 Оплатить криптой (TON)", callback_data=f"pay_crypto_{key}"))
     bot.send_message(
         call.message.chat.id,
-        f"🛒 *{product['name']}*\n"
+        f"🛒 <b>{product['name']}</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
         f"📝 {product['desc']}\n\n"
-        f"💰 *ЦЕНА:*\n"
+        f"💰 <b>ЦЕНА:</b>\n"
         f"⭐ {product['price_stars']} Stars\n"
         f"💳 {product['price_rub']} ₽\n"
         f"💎 {product['price_crypto']} TON\n"
         f"━━━━━━━━━━━━━━━━━━━━\n\n"
         "Выбери способ оплаты:",
-        reply_markup=markup,
-        parse_mode="Markdown"
+        reply_markup=markup
     )
     bot.answer_callback_query(call.id)
 
@@ -198,19 +211,18 @@ def pay_callback(call):
         markup.add(InlineKeyboardButton("✅ Я оплатил(а)", callback_data=f"rub_paid_{key}"))
         bot.send_message(
             call.message.chat.id,
-            f"💳 *ОПЛАТА РУБЛЯМИ*\n"
+            f"💳 <b>ОПЛАТА РУБЛЯМИ</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"🛒 Товар: *{product['name']}*\n"
-            f"💰 Сумма: *{product['price_rub']} ₽*\n\n"
+            f"🛒 Товар: <b>{product['name']}</b>\n"
+            f"💰 Сумма: <b>{product['price_rub']} ₽</b>\n\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"💳 *НОМЕР КАРТЫ* (нажми, чтобы скопировать):\n"
-            f"`{CARD_NUMBER}`\n\n"
+            f"💳 <b>НОМЕР КАРТЫ</b> (нажми, чтобы скопировать):\n"
+            f"<code>{CARD_NUMBER}</code>\n\n"
             f"📝 Назначение: покупка аккаунта\n"
             f"🏦 Перевод только на Сбербанк\n\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
             f"✅ После перевода нажми кнопку ниже",
-            reply_markup=markup,
-            parse_mode="Markdown"
+            reply_markup=markup
         )
         bot.answer_callback_query(call.id)
 
@@ -219,17 +231,16 @@ def pay_callback(call):
         markup.add(InlineKeyboardButton("✅ Я оплатил(а)", callback_data=f"crypto_paid_{key}"))
         bot.send_message(
             call.message.chat.id,
-            f"💎 *ОПЛАТА КРИПТОЙ (TON)*\n"
+            f"💎 <b>ОПЛАТА КРИПТОЙ (TON)</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"🛒 Товар: *{product['name']}*\n"
-            f"💰 Сумма: *{product['price_crypto']} TON*\n\n"
+            f"🛒 Товар: <b>{product['name']}</b>\n"
+            f"💰 Сумма: <b>{product['price_crypto']} TON</b>\n\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
-            f"💎 *АДРЕС КОШЕЛЬКА* (нажми, чтобы скопировать):\n"
-            f"`{WALLET_TON}`\n\n"
+            f"💎 <b>АДРЕС КОШЕЛЬКА</b> (нажми, чтобы скопировать):\n"
+            f"<code>{WALLET_TON}</code>\n\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
             f"✅ После перевода нажми кнопку ниже",
-            reply_markup=markup,
-            parse_mode="Markdown"
+            reply_markup=markup
         )
         bot.answer_callback_query(call.id)
 
@@ -246,24 +257,22 @@ def got_payment(message):
     product = PRODUCTS.get(key)
     bot.send_message(
         message.chat.id,
-        f"✅ *ОПЛАТА ПРОШЛА!*\n"
+        f"✅ <b>ОПЛАТА ПРОШЛА!</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"🛒 Товар: *{product['name']}*\n\n"
+        f"🛒 Товар: <b>{product['name']}</b>\n\n"
         "⏳ Ожидай подтверждения от администратора.\n"
-        "💬 Если не пришло — @WertaSupport",
-        parse_mode="Markdown"
+        "💬 Если не пришло — @WertaSupport"
     )
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton("✅ Выдать аккаунт", callback_data=f"give_{key}_{message.from_user.id}"))
     bot.send_message(
         ADMIN_ID,
-        f"💰 *НОВАЯ ОПЛАТА (Stars)!*\n\n"
+        f"💰 <b>НОВАЯ ОПЛАТА (Stars)!</b>\n\n"
         f"🛒 Товар: {product['name']}\n"
         f"👤 Покупатель: {message.from_user.first_name}\n"
-        f"🆔 ID: `{message.from_user.id}`\n\n"
+        f"🆔 ID: <code>{message.from_user.id}</code>\n\n"
         "Нажми кнопку, чтобы выдать аккаунт:",
-        reply_markup=markup,
-        parse_mode="Markdown"
+        reply_markup=markup
     )
 
 # ===== ПОДТВЕРЖДЕНИЕ РУБЛЕЙ / КРИПТЫ =====
@@ -280,24 +289,22 @@ def manual_paid(call):
     buyer_name = call.from_user.first_name or "Без имени"
     bot.send_message(
         call.message.chat.id,
-        f"✅ *ЗАЯВКА ПРИНЯТА!*\n"
+        f"✅ <b>ЗАЯВКА ПРИНЯТА!</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"🛒 Товар: *{product['name']}*\n\n"
+        f"🛒 Товар: <b>{product['name']}</b>\n\n"
         "⏳ Ожидай подтверждения от администратора.\n"
-        "💬 Если не пришло — @WertaSupport",
-        parse_mode="Markdown"
+        "💬 Если не пришло — @WertaSupport"
     )
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton("✅ Выдать аккаунт", callback_data=f"give_{key}_{buyer_id}"))
     bot.send_message(
         ADMIN_ID,
-        f"💰 *НОВАЯ ОПЛАТА ({method})!*\n\n"
+        f"💰 <b>НОВАЯ ОПЛАТА ({method})!</b>\n\n"
         f"🛒 Товар: {product['name']}\n"
         f"👤 Покупатель: {buyer_name}\n"
-        f"🆔 ID: `{buyer_id}`\n\n"
+        f"🆔 ID: <code>{buyer_id}</code>\n\n"
         "Нажми кнопку, чтобы выдать аккаунт:",
-        reply_markup=markup,
-        parse_mode="Markdown"
+        reply_markup=markup
     )
     bot.answer_callback_query(call.id)
 
@@ -313,11 +320,10 @@ def give_account_start(call):
     admin_state[ADMIN_ID] = {"buyer_id": buyer_id, "key": key}
     bot.send_message(
         ADMIN_ID,
-        f"✍️ Введи данные аккаунта для покупателя `{buyer_id}`:\n\n"
-        "Формат: `логин:пароль`\n"
-        "Пример: `india_acc1:mypass123`\n\n"
-        "Отмена: /cancel",
-        parse_mode="Markdown"
+        f"✍️ Введи данные аккаунта для покупателя <code>{buyer_id}</code>:\n\n"
+        "Формат: <code>логин:пароль</code>\n"
+        "Пример: <code>india_acc1:mypass123</code>\n\n"
+        "Отмена: /cancel"
     )
     bot.answer_callback_query(call.id)
 
@@ -329,22 +335,21 @@ def admin_send_account(message):
         return
     text = message.text.strip()
     if ":" not in text:
-        bot.send_message(ADMIN_ID, "❌ Неверный формат! Нужно `логин:пароль`", parse_mode="Markdown")
+        bot.send_message(ADMIN_ID, "❌ Неверный формат! Нужно <code>логин:пароль</code>")
         return
     buyer_id = data["buyer_id"]
     login, password = text.split(":", 1)
     try:
         bot.send_message(
             buyer_id,
-            f"✅ *ОПЛАТА ПОДТВЕРЖДЕНА!*\n"
+            f"✅ <b>ОПЛАТА ПОДТВЕРЖДЕНА!</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"🔐 Логин: `{login}`\n"
-            f"🔑 Пароль: `{password}`\n\n"
+            f"🔐 Логин: <code>{login}</code>\n"
+            f"🔑 Пароль: <code>{password}</code>\n\n"
             f"━━━━━━━━━━━━━━━━━━━━\n"
-            "⚠️ Сохрани эти данные!",
-            parse_mode="Markdown"
+            "⚠️ Сохрани эти данные!"
         )
-        bot.send_message(ADMIN_ID, f"✅ Аккаунт выдан покупателю `{buyer_id}`", parse_mode="Markdown")
+        bot.send_message(ADMIN_ID, f"✅ Аккаунт выдан покупателю <code>{buyer_id}</code>")
     except Exception as e:
         bot.send_message(ADMIN_ID, f"❌ Не смог отправить: {e}")
     admin_state.pop(ADMIN_ID, None)
@@ -361,16 +366,15 @@ def give_manual(message):
         login, password = account_data.split(":", 1)
         bot.send_message(
             buyer_id,
-            f"✅ *ОПЛАТА ПОДТВЕРЖДЕНА!*\n"
+            f"✅ <b>ОПЛАТА ПОДТВЕРЖДЕНА!</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"🔐 Логин: `{login}`\n"
-            f"🔑 Пароль: `{password}`\n\n"
-            "⚠️ Сохрани эти данные!",
-            parse_mode="Markdown"
+            f"🔐 Логин: <code>{login}</code>\n"
+            f"🔑 Пароль: <code>{password}</code>\n\n"
+            "⚠️ Сохрани эти данные!"
         )
-        bot.send_message(ADMIN_ID, f"✅ Аккаунт выдан `{buyer_id}`", parse_mode="Markdown")
+        bot.send_message(ADMIN_ID, f"✅ Аккаунт выдан <code>{buyer_id}</code>")
     except Exception as e:
-        bot.send_message(ADMIN_ID, f"❌ Формат: `/give ID логин:пароль`\nОшибка: {e}", parse_mode="Markdown")
+        bot.send_message(ADMIN_ID, f"❌ Формат: <code>/give ID логин:пароль</code>\nОшибка: {e}")
 
 # ===== ОТМЕНА =====
 @bot.message_handler(commands=['cancel'])
@@ -390,16 +394,15 @@ def admin_panel(message):
     markup.add(InlineKeyboardButton("📊 Статистика", callback_data="admin_stats"))
     bot.send_message(
         message.chat.id,
-        "🔧 *Админ-панель WertaShop*\n\n"
+        "🔧 <b>Админ-панель WertaShop</b>\n\n"
         "Команды:\n"
-        "`/give ID логин:пароль` — выдать аккаунт\n"
-        "`/block ID` — заблокировать\n"
-        "`/unblock ID` — разблокировать\n"
-        "`/broadcast Текст` — рассылка\n"
-        "`/cancel` — отменить ввод\n\n"
+        "<code>/give ID логин:пароль</code> — выдать аккаунт\n"
+        "<code>/block ID</code> — заблокировать\n"
+        "<code>/unblock ID</code> — разблокировать\n"
+        "<code>/broadcast Текст</code> — рассылка\n"
+        "<code>/cancel</code> — отменить ввод\n\n"
         "Или нажми кнопку:",
-        reply_markup=markup,
-        parse_mode="Markdown"
+        reply_markup=markup
     )
 
 @bot.callback_query_handler(func=lambda call: call.data == "admin_stats")
@@ -413,10 +416,9 @@ def admin_stats(call):
             users_count = len([l for l in f if l.strip()])
     bot.send_message(
         call.message.chat.id,
-        f"📊 *Статистика:*\n\n"
+        f"📊 <b>Статистика:</b>\n\n"
         f"👥 Пользователей: {users_count}\n"
-        f"⛔ Заблокировано: {len(BLOCKED_USERS)}",
-        parse_mode="Markdown"
+        f"⛔ Заблокировано: {len(BLOCKED_USERS)}"
     )
     bot.answer_callback_query(call.id)
 
@@ -452,7 +454,7 @@ def broadcast(message):
         return
     text = message.text.replace("/broadcast", "").strip()
     if not text:
-        bot.send_message(message.chat.id, "❌ Напиши: `/broadcast Твой текст`", parse_mode="Markdown")
+        bot.send_message(message.chat.id, "❌ Напиши: <code>/broadcast Твой текст</code>")
         return
     if not os.path.exists(USERS_FILE):
         bot.send_message(message.chat.id, "❌ Нет файла users.txt")
